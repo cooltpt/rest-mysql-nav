@@ -11,4 +11,4 @@ a static HTML/AngularJS page to serve content..
 4. The server expects the 1st field of the table to be the PK
 5. Search for FIXME in the code for places to modify
 6. npm start
-7. http://<server>:<port>/
+7. http://server:port/
