@@ -1,0 +1,225 @@
+<html>
+   <head>
+
+      <style>
+
+body {
+   background: steelblue;
+   color: white;
+}
+
+table {
+   border: 1px solid white;
+}
+
+      </style>
+
+      <!--script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.3.14/angular.min.js"></script-->
+      <script src="angular.min.js"></script>
+
+   </head>
+
+   <body ng-app="mainApp">
+      <div id="brand"><table width="1024" align="center"><tr><td><h3>REST-MYSQL-NAV DEMO</h3></td></tr></table></div>
+      <div id="main">
+         <table width="1024" align="center">
+
+<!-- DB List -->
+            <tr>
+               <td>
+                  <div ng-controller="dbListController">
+                     <table width="100%" ng-hide="showDbList">
+                        <tr><th>Database</th></tr>
+                        <tr ng-repeat="db in dbs">
+                           <td>
+                              <input ng-click="dbValueChanged(dbChoice)" ng-model="dbChoice" name="dbChoiceList"
+                                 type="radio" value="{{db.Database}}">{{db.Database}}</input>
+                           </td>
+                        </tr>
+                     </table>
+                     <table width="100%" ng-show="showDbList">
+                        <tr><th>Database Error</th></tr>
+                        <tr><td>{{err}}</td></tr>
+                     </table>
+                  </div>
+               </td>
+            </tr>
+
+<!-- Table List -->
+            <tr>
+               <td>
+                  <div ng-controller="tableListController">
+                     <table width="100%" ng-hide="showTableList">
+                        <tr><th>Tables</th></tr>
+                        <tr ng-repeat="table in tables">
+                           <td>
+                              <input ng-click="tableValueChanged(tableChoice)" ng-model="tableChoice" name="tableChoiceList" 
+                                 type="radio" value="{{table.name}}">{{table.name}}</input>
+                           </td>
+                        </tr>
+                     </table>
+                     <table width="100%" ng-show="showTableList">
+                        <tr><th>Table Lookup Error</th></tr>
+                        <tr><td>{{err}}</td></tr>
+                     </table>
+                  </div>
+               </td>
+            </tr>
+
+<!-- Table Content -->
+            <tr>
+               <td>
+                  <div ng-controller="tableContentController">
+                     <table width="100%" ng-hide="showTableContent" border=1>
+                        <tr><th colspan="{{meta.length}}"><h5>{{tableName}}</h5><br>( {{query}} )</th></tr>
+                        <tr>
+                           <th ng-repeat="info in meta">{{info.Field}}<br>[ {{info.Type}} ]</th>
+                        </tr>
+                        <tr ng-repeat="row in rows">
+                           <td ng-repeat="fld in row">{{fld}}</td>
+                        </tr>
+                     </table>
+                     <table width="100%" ng-show="showTableContent">
+                        <tr><th>Table Lookup Error</th></tr>
+                        <tr><td>{{err}}</td></tr>
+                     </table>
+                  </div>
+               </td>
+            </tr>
+
+         </table>
+      </div>
+      <div id="footer"><table width="1024" align="center"><tr><td>&copy Acme Inc</td></tr></table></div>
+
+      <script>
+
+         var dbChoice = "";
+         var tableChoice = "";
+
+         var dbListScope;
+         var tableListScope;
+         var tableContentScope;
+
+
+         var mainApp = angular.module("mainApp", []);
+
+
+         mainApp.controller('dbListController', function($scope, $http) {
+            dbListScope = $scope;
+
+            $http.get("/api/dbs").success(function(res) {
+
+               $scope.showDbList = res.hasError;
+
+               if (res.hasError === false) {
+                  $scope.dbs = res.rows;
+               } else {
+                  $scope.err = res.message;
+               }
+
+            });
+
+            $scope.dbValueChanged = function(value) {
+               dbChoice = value;
+               tableListScope.dbValueChanged();
+            }
+         });
+
+         mainApp.controller('tableListController', function($scope, $http) {
+            tableListScope = $scope;
+
+            $scope.showTableList = true;
+            $scope.err = "Choose a database..";
+
+            $scope.dbValueChanged = function() {
+               if (dbChoice.length < 1) return;
+
+               $http.get("/api/dbs/" + dbChoice + "/tables").success(function(res) {
+
+                  $scope.showTableList = res.hasError;
+
+                  if (res.hasError === false) {
+                     $scope.tables = res.rows;
+                     for(r in $scope.tables) {
+                        $scope.tables[r].name = $scope.tables[r]["Tables_in_" + dbChoice];
+                     }
+                  } else {
+                     $scope.err = res.message;
+                  }
+
+               });
+            }
+
+            $scope.tableValueChanged = function(value) {
+               tableChoice = value;
+               tableContentScope.tableValueChanged();
+            }
+ 
+
+         });
+
+         mainApp.controller('tableContentController', function($scope, $http) {
+            tableContentScope = $scope;
+
+            $scope.showTableContent = true;
+            $scope.err = "Choose a table..";
+
+            $scope.tableValueChanged = function() {
+               if (tableChoice.length < 1) return;
+
+               $scope.tableName = tableChoice;
+
+               $http.get("/api/dbs/" + dbChoice + "/tables/" + tableChoice).success(function(res) {
+
+                  $scope.showTableContent = res.hasError;
+
+                  if (res.hasError === false) {
+                     $scope.meta = res.rows;
+                  } else {
+                     $scope.err = res.message;
+                     return;
+                  }
+
+               });
+
+               $http.get("/api/" + dbChoice + "/" + tableChoice).success(function(res) {
+
+                  $scope.showTableContent = res.hasError;
+
+                  if (res.hasError === false) {
+                     $scope.rows = [];
+                     $scope.query = res.query;
+
+                     for(r in res.rows) {
+                        var row = res.rows[r];
+                        var newRow = [];
+                        for(h in $scope.meta) {
+                           var fld = $scope.meta[h].Field;
+                           var value = eval("row." + fld);
+                           newRow.push(value);
+                        }
+                        $scope.rows.push(newRow);
+                     }
+                     
+                  } else {
+                     $scope.err = res.message;
+                  }
+
+               });
+            }
+
+            // want to edit table?
+            $scope.FIXMEtableValueChanged = function(value) {
+               tableChoice = value;
+               //tableService.tableChosen();
+               alert(dbChoice + "/" + tableChoice);
+            }
+ 
+
+         });
+
+      </script>
+
+
+   <body>
+</html>
